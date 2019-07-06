@@ -59,6 +59,10 @@ static char *histfile;
 static char *histbuf, *histptr;
 static size_t histsz;
 
+static char *histfile;
+static char *histbuf, *histptr;
+static size_t histsz;
+
 #include "config.h"
 
 static int (*fstrncmp)(const char *, const char *, size_t) = strncmp;
@@ -395,6 +399,40 @@ movewordedge(int dir)
 	}
 }
 
+
+static void
+savehistory(char *str)
+{
+	unsigned int n, len = 0;
+	size_t slen;
+	char *p;
+	FILE *fp;
+
+	if (!histfile || !maxhist)
+		return;
+	if (!(slen = strlen(str)))
+		return;
+	if (histbuf && maxhist > 1) {
+		p = histbuf + histsz - BUFSIZ - 1; /* skip the last newline */
+		if (histnodup) {
+			for (; p != histbuf && p[-1] != '\n'; p--, len++);
+			n++;
+			if (slen == len && !strncmp(p, str, len)) {
+				return;
+			}
+		}
+		for (; p != histbuf; p--, len++)
+			if (p[-1] == '\n' && ++n + 1 > maxhist)
+				break;
+		fp = fopen(histfile, "w");
+		fwrite(p, 1, len + 1, fp);	/* plus the last newline */
+	} else {
+		fp = fopen(histfile, "w");
+	}
+	fwrite(str, 1, strlen(str), fp);
+	fclose(fp);
+}
+
 static void
 loadhistory(void)
 {
@@ -461,38 +499,6 @@ navhistory(int dir)
 	cursor = len;
 	match();
 } 
-static void
-savehistory(char *str)
-{
-	unsigned int n, len = 0;
-	size_t slen;
-	char *p;
-	FILE *fp;
-
-	if (!histfile || !maxhist)
-		return;
-	if (!(slen = strlen(str)))
-		return;
-	if (histbuf && maxhist > 1) {
-		p = histbuf + histsz - BUFSIZ - 1; /* skip the last newline */
-		if (histnodup) {
-			for (; p != histbuf && p[-1] != '\n'; p--, len++);
-			n++;
-			if (slen == len && !strncmp(p, str, len)) {
-				return;
-			}
-		}
-		for (; p != histbuf; p--, len++)
-			if (p[-1] == '\n' && ++n + 1 > maxhist)
-				break;
-		fp = fopen(histfile, "w");
-		fwrite(p, 1, len + 1, fp);	/* plus the last newline */
-	} else {
-		fp = fopen(histfile, "w");
-	}
-	fwrite(str, 1, strlen(str), fp);
-	fclose(fp);
-}
 
 static void
 keypress(XKeyEvent *ev)
@@ -578,11 +584,19 @@ keypress(XKeyEvent *ev)
 		case XK_j: ksym = XK_Next;  break;
 		case XK_k: ksym = XK_Prior; break;
 		case XK_l: ksym = XK_Down;  break;
+		default:
+			return;
+		}
+	}else if(ev->state & Mod4Mask){
+		switch(ksym){
+		
 		case XK_p: navhistory(-1); buf[0]=0; break;
 		case XK_n: navhistory(1); buf[0]=0; break;
 		default:
 			return;
+		
 		}
+		
 	}
 
 	switch(ksym) {
